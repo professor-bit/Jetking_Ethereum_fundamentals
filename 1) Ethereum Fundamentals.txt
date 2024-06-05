@@ -1,0 +1,99 @@
+﻿1) Write an NFT Market Place Smart Contract which
+allows users to buy the NFT and list their already-minted
+NFT also the owner of the marketplace has to get a
+commission whenever an NFT is sold.
+
+
+
+
+ANS. Creating an NFT marketplace smart contract involves writing a contract that allows users to list, buy, and sell NFTs. Additionally, the marketplace owner should receive a commission from each sale. Below is a basic implementation using Solidity, a popular programming language for Ethereum smart contracts.
+This example includes functionalities for:
+* Listing NFTs for sale.
+* Buying NFTs.
+* Transferring ownership (List their already-minted NFT)
+* Paying the marketplace owner a commission (Commission to owner whenever an NFT is sold)
+We'll use OpenZeppelin's ERC721 implementation for the NFTs to ensure compliance with the ERC721 standard. So, firstly we have to import openZeppelin’s solidity file.
+—-----------------------------------------------------------------------------------------------------------------
+
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+contract NFTMarketplace is Ownable {
+    struct Listing {
+        address seller;
+        uint256 price;
+    }
+    // Mapping from token ID to listing
+    mapping(address => mapping(uint256 => Listing)) public listings;
+
+
+    // Marketplace commission in percentage (e.g., 2 for 2%)
+    uint256 public commissionPercentage;
+    address public commissionRecipient;
+
+
+    event NFTListed(address indexed nftContract, uint256 indexed tokenId, address seller, uint256 price);
+    event NFTBought(address indexed nftContract, uint256 indexed tokenId, address buyer, address seller, uint256 price);
+
+
+    constructor(uint256 _commissionPercentage, address _commissionRecipient) {
+        require(_commissionRecipient != address(0), "Invalid commission recipient");
+        commissionPercentage = _commissionPercentage;
+        commissionRecipient = _commissionRecipient;
+    }
+
+
+    function listNFT(address nftContract, uint256 tokenId, uint256 price) external {
+        IERC721 nft = IERC721(nftContract);
+        require(nft.ownerOf(tokenId) == msg.sender, "You are not the owner of this NFT");
+        require(nft.getApproved(tokenId) == address(this) || nft.isApprovedForAll(msg.sender, address(this)), "Marketplace not approved");
+
+
+        listings[nftContract][tokenId] = Listing({
+            seller: msg.sender,
+            price: price
+        });
+
+
+        emit NFTListed(nftContract, tokenId, msg.sender, price);
+    }
+
+
+    function buyNFT(address nftContract, uint256 tokenId) external payable {
+        Listing memory listing = listings[nftContract][tokenId];
+        require(listing.price > 0, "NFT not listed for sale");
+        require(msg.value >= listing.price, "Insufficient payment");
+
+
+        uint256 commission = (listing.price * commissionPercentage) / 100;
+        uint256 sellerProceeds = listing.price - commission;
+
+
+        // Transfer the NFT to the buyer
+        IERC721(nftContract).safeTransferFrom(listing.seller, msg.sender, tokenId);
+
+
+        // Pay the seller
+        payable(listing.seller).transfer(sellerProceeds);
+
+
+        // Pay the commission to the marketplace owner
+        payable(commissionRecipient).transfer(commission);
+
+
+        // Remove the listing
+        delete listings[nftContract][tokenId];
+        emit NFTBought(nftContract, tokenId, msg.sender, listing.seller, listing.price);
+    }
+    function updateCommission(uint256 _commissionPercentage, address _commissionRecipient) external onlyOwner {
+        require(_commissionRecipient != address(0), "Invalid commission recipient");
+        commissionPercentage = _commissionPercentage;
+        commissionRecipient = _commissionRecipient;
+    }
+    function withdraw() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
+    }
+}
+Remove the Listing is OPTIONAL*
+This contract provides a basic structure for an NFT marketplace which allows users to buy the NFT and list their already-minted NFT (Transferring Ownership). Also, the owner of the marketplace has to get a commission whenever an NFT is sold.
